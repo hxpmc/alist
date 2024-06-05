@@ -6,7 +6,6 @@ import (
 )
 
 type Addition struct {
-	// Usually one of two
 	driver.RootPath
 	Token string `json:"token" required:"true"`
 }
