@@ -38,9 +38,15 @@ type AssetResp struct {
 type UpInitResp struct {
 	Resp
 	Data struct {
-		Guid  string `json:"guid"`
-		Key   string `json:"key"`
-		Token string `json:"token"`
+		Token           string `json:"token"`
+		Supplier        string `json:"supplier"`
+		Key             string `json:"key"`
+		Guid            string `json:"guid"`
+		AccessKeyId     string `json:"accessKeyId"`
+		AccessKeySecret string `json:"accessKeySecret"`
+		EndPoint        string `json:"endPoint"`
+		Region          string `json:"region"`
+		Bucket          string `json:"bucket"`
 	} `json:"data"`
 }
 type AssetsObj struct {

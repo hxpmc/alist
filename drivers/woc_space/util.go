@@ -155,16 +155,31 @@ func (d *WocSpace) putFile(ctx context.Context, dstDir model.Obj, stream model.F
 	if err1 != nil {
 		return err
 	}
-	fileResp, err2 := d.upClient.R().SetMultipartFormData(map[string]string{
-		"token": upInitResp.Data.Token,
-		"key":   upInitResp.Data.Key,
-		"fname": stream.GetName(),
-	}).SetMultipartField("file", stream.GetName(), stream.GetMimetype(), tempFile).
-		Post("https://upload.qiniup.com/")
-	if err2 != nil {
-		return err
+
+	if upInitResp.Data.Supplier == "QI_NIU" {
+		_, err := d.upClient.R().SetMultipartFormData(map[string]string{
+			"token": upInitResp.Data.Token,
+			"key":   upInitResp.Data.Key,
+			"fname": stream.GetName(),
+		}).SetMultipartField("file", stream.GetName(), stream.GetMimetype(), tempFile).
+			Post("https://upload.qiniup.com/")
+		if err != nil {
+			return err
+		}
+	} else if upInitResp.Data.Supplier == "HUO_SHAN" {
+		_, err := d.upClient.R().SetHeaders(map[string]string{
+			"authorization":        "",
+			"x-tos-security-token": "",
+			"x-tos-date":           "",
+			"x-tos-content-sha256": "UNSIGNED-PAYLOAD",
+		}).Put("")
+		if err != nil {
+			return err
+		}
+	} else {
+		return nil
 	}
-	fileResp.Body()
+
 	_, err3 := d.request("/space/file_entity_uploaded", http.MethodPost, func(req *resty.Request) {
 		req.SetFormData(map[string]string{
 			"spaceGuid": dstDir.GetID(),
