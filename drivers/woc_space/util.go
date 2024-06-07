@@ -6,6 +6,8 @@ import (
 	"github.com/alist-org/alist/v3/drivers/base"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/go-resty/resty/v2"
+	"github.com/volcengine/ve-tos-golang-sdk/v2/tos"
+	"io"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -155,11 +157,11 @@ func (d *WocSpace) putFile(ctx context.Context, dstDir model.Obj, stream model.F
 	if err1 != nil {
 		return err
 	}
-
-	if upInitResp.Data.Supplier == "QI_NIU" {
+	respData := upInitResp.Data
+	if respData.Supplier == "QI_NIU" {
 		_, err := d.upClient.R().SetMultipartFormData(map[string]string{
-			"token": upInitResp.Data.Token,
-			"key":   upInitResp.Data.Key,
+			"token": respData.Token,
+			"key":   respData.Key,
 			"fname": stream.GetName(),
 		}).SetMultipartField("file", stream.GetName(), stream.GetMimetype(), tempFile).
 			Post("https://upload.qiniup.com/")
@@ -167,15 +169,8 @@ func (d *WocSpace) putFile(ctx context.Context, dstDir model.Obj, stream model.F
 			return err
 		}
 	} else if upInitResp.Data.Supplier == "HUO_SHAN" {
-		_, err := d.upClient.R().SetHeaders(map[string]string{
-			"authorization":        "",
-			"x-tos-security-token": "",
-			"x-tos-date":           "",
-			"x-tos-content-sha256": "UNSIGNED-PAYLOAD",
-		}).Put("")
-		if err != nil {
-			return err
-		}
+		uploadTos(respData, tempFile)
+
 	} else {
 		return nil
 	}
@@ -188,4 +183,38 @@ func (d *WocSpace) putFile(ctx context.Context, dstDir model.Obj, stream model.F
 		})
 	}, nil)
 	return err3
+}
+func (d *WocSpace) getDownLoadUrl(spaceGuid string, entityGuid string) (DownloadResp, error) {
+	var resp DownloadResp
+	formData := map[string]string{
+		"spaceGuid": spaceGuid,
+		"guids":     entityGuid,
+	}
+	_, err := d.request("/space/download", http.MethodPost, func(req *resty.Request) {
+		req.SetFormData(formData)
+	}, &resp)
+
+	return resp, err
+}
+func uploadTos(upInit UpInit, file io.Reader) error {
+	cred := tos.NewStaticCredentials(upInit.AccessKeyId, upInit.SecretAccessKey)
+	cred.WithSecurityToken(upInit.Token)
+	// 初始化客户端
+	client, err := tos.NewClientV2(upInit.EndPoint, tos.WithRegion(upInit.Region), tos.WithCredentials(cred))
+	// 上传对象 Body ， 以 string 对象为例
+	if err != nil {
+		return err
+	}
+	// 上传对象
+	_, err1 := client.PutObjectV2(context.Background(), &tos.PutObjectV2Input{
+		PutObjectBasicInput: tos.PutObjectBasicInput{
+			Bucket: upInit.Bucket,
+			Key:    upInit.Key,
+		},
+		Content: file,
+	})
+	if err1 != nil {
+		return err
+	}
+	return nil
 }

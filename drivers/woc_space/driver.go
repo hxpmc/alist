@@ -8,6 +8,7 @@ import (
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/go-resty/resty/v2"
+	"strings"
 	"time"
 )
 
@@ -65,6 +66,12 @@ func (d *WocSpace) List(ctx context.Context, dir model.Obj, args model.ListArgs)
 
 func (d *WocSpace) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (*model.Link, error) {
 	// TODO return link of file, required
+	if o, ok := file.(*AssetsObj); ok {
+		resp, err := d.getDownLoadUrl(o.SpaceId, o.GetID())
+		link := model.Link{URL: resp.Data.DownloadItems[0].Key}
+
+		return &link, err
+	}
 	return nil, errs.NotImplement
 }
 
@@ -85,15 +92,27 @@ func (d *WocSpace) Move(ctx context.Context, srcObj, dstDir model.Obj) (model.Ob
 
 func (d *WocSpace) Rename(ctx context.Context, srcObj model.Obj, newName string) (model.Obj, error) {
 	// TODO rename obj, optional
+	var realName = newName
 	var spaceId string
-	if o, ok := srcObj.(*AssetsObj); ok {
-		spaceId = o.SpaceId
-		err := d.renameAsset(spaceId, o.ID, newName)
-		return nil, err
+	if !srcObj.IsDir() {
+		if o, ok := srcObj.(*AssetsObj); ok {
+			srcExt, newExt := utils.Ext(srcObj.GetName()), utils.Ext(newName)
+			// 曲奇网盘的文件名称由文件名和扩展名组成，若存在扩展名，则重命名时仅支持更改文件名，扩展名在曲奇服务端保留
+			if srcExt != "" && srcExt == newExt {
+				parts := strings.Split(newName, ".")
+				if len(parts) > 1 {
+					realName = strings.Join(parts[:len(parts)-1], ".")
+				}
+			}
+			spaceId = o.SpaceId
+			err := d.renameAsset(spaceId, o.ID, realName)
+			return nil, err
+		}
 	} else {
 		err := d.renameSpace(srcObj.GetID(), newName)
 		return nil, err
 	}
+	return nil, errs.NotImplement
 }
 
 func (d *WocSpace) Copy(ctx context.Context, srcObj, dstDir model.Obj) (model.Obj, error) {
@@ -118,8 +137,8 @@ func (d *WocSpace) Remove(ctx context.Context, obj model.Obj) error {
 
 func (d *WocSpace) Put(ctx context.Context, dstDir model.Obj, stream model.FileStreamer, up driver.UpdateProgress) (model.Obj, error) {
 	// TODO upload file, optional
-	d.putFile(ctx, dstDir, stream)
-	return nil, errs.NotImplement
+	err := d.putFile(ctx, dstDir, stream)
+	return nil, err
 }
 
 //func (d WocSpace) Other(ctx context.Context, args model.OtherArgs) (interface{}, error) {
